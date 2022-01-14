@@ -1,0 +1,6 @@
+[submodule "dace"]
+	path = dace
+	url = https://github.com/spcl/dace.git
+[submodule "daceml"]
+	path = daceml
+	url = https://github.com/spcl/daceml.git
