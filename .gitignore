@@ -143,5 +143,6 @@ src.VC.VC.opendb
 .DS_STORE
 .DS_Store
 .*cache/
+_dacegraphs/
 
 *~
