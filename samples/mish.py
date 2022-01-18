@@ -1,6 +1,7 @@
 import sys
 import time
 import os
+from typing import Union
 import click
 
 import torch
@@ -9,7 +10,7 @@ from torch.nn import functional as F
 
 from daceml.pytorch import DaceModule
 from daceml import onnx as donnx
-import plankton
+from plankton.module import EnzymeModule
 from plankton.util import benchmark
 
 
@@ -26,7 +27,8 @@ class Mish(nn.Module):
 @click.option('--schedule',
               default='noop',
               help='Pre-AD schedule to use',
-              type=click.Choice(['noop', 'fuse', 'tfuse'], case_sensitive=False))
+              type=click.Choice(['noop', 'fuse', 'tfuse'],
+                                case_sensitive=False))
 @click.option('--enzyme/--no-enzyme',
               default=True,
               help='Use Enzyme as auto-differentiator')
@@ -41,8 +43,7 @@ def main(schedule, enzyme, cuda, reps):
     dace_mish = Mish()
 
     if enzyme:
-        dace_mish = plankton.EnzymeModule(
-            DaceModule(dace_mish, cuda=cuda, backward=False))
+        dace_mish = EnzymeModule(dace_mish, cuda=cuda)
     else:
         dace_mish = DaceModule(dace_mish, cuda=cuda, backward=True)
 
@@ -88,7 +89,9 @@ def main(schedule, enzyme, cuda, reps):
     benchmark(func, reps)
 
 
-def optimize(mod, vectorize=False, fuse_tasklets=False):
+def optimize(mod: Union[EnzymeModule, DaceModule],
+             vectorize=False,
+             fuse_tasklets=False):
     import dace
     from dace import data as dt
     from dace.transformation.dataflow import Vectorization, TrivialMapRangeElimination
@@ -96,10 +99,9 @@ def optimize(mod, vectorize=False, fuse_tasklets=False):
     from daceml.util import utils
     from plankton.dml_flatten_elemwise import flatten_elementwise_onnx
 
-    if isinstance(mod, plankton.EnzymeModule):
-        mod = mod.module
-        
-    
+    if isinstance(mod, EnzymeModule):
+        mod: DaceModule = mod.module
+
     # expand the onnx nodes, and apply automatic transformations like inlining
     def expand_and_strict_transforms(module):
         utils.auto_optimize(module.sdfg, cuda=True, apply_strict=True)
@@ -116,9 +118,11 @@ def optimize(mod, vectorize=False, fuse_tasklets=False):
 
     # apply tasklet fusion
     if fuse_tasklets:
+
         def _fuse(sdfg):
             from daceml.transformation import TaskletFusion
             sdfg.apply_transformations_repeated(TaskletFusion)
+
         mod.append_post_onnx_hook("fuse_tasklets", lambda x: _fuse(x.sdfg))
 
     # flatten elementwise maps

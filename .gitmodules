@@ -4,3 +4,6 @@
 [submodule "daceml"]
 	path = daceml
 	url = https://github.com/spcl/daceml.git
+[submodule "enzyme"]
+	path = enzyme
+	url = https://github.com/wsmoses/Enzyme.git
